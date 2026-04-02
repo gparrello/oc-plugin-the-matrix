@@ -2,7 +2,7 @@
 
 Matrix-inspired TUI plugin for OpenCode.
 
-It adds a transparent green-phosphor theme, animated rain, a cinematic startup intro, and optional session text that briefly drops into place.
+It adds a green-phosphor theme with toggleable background transparency, animated rain, a cinematic startup intro, and optional session text that briefly drops into place.
 
 ## Screencast
 
@@ -12,7 +12,7 @@ Click the preview to open the full video.
 
 ## Features
 
-- transparent `matrix-console` theme
+- toggleable transparent or opaque `matrix-console` theme background
 - fullscreen boot-style intro
 - Matrix rain on the home screen or across the full UI
 - route-aware `adaptive` and `uniform` intensity profiles
@@ -51,6 +51,7 @@ Available commands:
 ## Settings
 
 - `Effect`: master on/off switch
+- `Background transparency`: toggle the bundled Matrix theme between transparent and opaque backgrounds
 - `Scope`: `Home only` or `Everywhere`
 - `Route profile`: `Route-aware` or `Uniform`
 - `Paint mode`: draw only in empty cells or overlay all text
@@ -67,7 +68,8 @@ Available commands:
 ## Repository Layout
 
 - `index.ts`: TUI plugin entry
-- `matrix-console.json`: bundled theme
+- `matrix-console.json`: transparent bundled theme
+- `matrix-console-opaque.json`: opaque bundled theme variant
 
 ## Notes
 

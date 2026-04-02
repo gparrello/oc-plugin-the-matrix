@@ -1,5 +1,7 @@
 const THEME_NAME = "matrix-console"
+const OPAQUE_THEME_NAME = "matrix-console-opaque"
 const THEME_PATH = new URL("./matrix-console.json", import.meta.url).pathname
+const OPAQUE_THEME_PATH = new URL("./matrix-console-opaque.json", import.meta.url).pathname
 const SETTINGS_KEY = "matrix-rain.settings"
 const ENABLED_KEY = "matrix-rain.enabled"
 const THEME_READY_KEY = "matrix-rain.theme-ready"
@@ -67,6 +69,7 @@ const PROFILE_LABEL = {
 
 const DEFAULT_SETTINGS = {
   enabled: true,
+  backgroundTransparency: true,
   scope: "all",
   paint: "empty",
   density: "medium",
@@ -88,6 +91,7 @@ type ProfileMode = keyof typeof PROFILE_LABEL
 
 type Settings = {
   enabled: boolean
+  backgroundTransparency: boolean
   scope: Scope
   paint: PaintMode
   density: Density
@@ -278,6 +282,21 @@ function introDuration(settings: Settings) {
   return INTRO_VALUE[settings.introLength]
 }
 
+function preferredThemeName(settings: Pick<Settings, "backgroundTransparency">) {
+  return settings.backgroundTransparency ? THEME_NAME : OPAQUE_THEME_NAME
+}
+
+function matrixThemeSelected(api: any) {
+  return api.theme.selected === THEME_NAME || api.theme.selected === OPAQUE_THEME_NAME
+}
+
+function applyPreferredTheme(api: any, settings: Pick<Settings, "backgroundTransparency">) {
+  const themeName = preferredThemeName(settings)
+  if (!api.theme.has(themeName) || api.theme.selected === themeName) return false
+  api.theme.set(themeName)
+  return true
+}
+
 function currentRouteName(api: any) {
   return typeof api.route.current?.name === "string" ? api.route.current.name : "unknown"
 }
@@ -289,6 +308,10 @@ function readSettings(api: any): Settings {
 
   return {
     enabled: typeof settings.enabled === "boolean" ? settings.enabled : legacyEnabled,
+    backgroundTransparency:
+      typeof settings.backgroundTransparency === "boolean"
+        ? settings.backgroundTransparency
+        : DEFAULT_SETTINGS.backgroundTransparency,
     scope: readEnum(settings.scope, SCOPE_LABEL, DEFAULT_SETTINGS.scope),
     paint: readEnum(settings.paint, PAINT_LABEL, DEFAULT_SETTINGS.paint),
     density: readEnum(settings.density, DENSITY_LABEL, DEFAULT_SETTINGS.density),
@@ -863,16 +886,26 @@ function routeEnabled(api: any, settings: Settings) {
   return settings.scope === "all" || currentRouteName(api) === "home"
 }
 
-async function ensureTheme(api: any) {
-  try {
-    await api.theme.install(THEME_PATH)
-  } catch {}
+async function ensureTheme(api: any, settings: Settings) {
+  for (const themePath of [THEME_PATH, OPAQUE_THEME_PATH]) {
+    try {
+      await api.theme.install(themePath)
+    } catch {}
+  }
 
-  if (!api.theme.has(THEME_NAME)) return
-  if (api.kv.get(THEME_READY_KEY, false) === true) return
+  const themeName = preferredThemeName(settings)
 
-  api.theme.set(THEME_NAME)
-  api.kv.set(THEME_READY_KEY, true)
+  if (api.kv.get(THEME_READY_KEY, false) !== true) {
+    if (!api.theme.has(themeName)) return
+    if (api.theme.selected !== themeName) {
+      api.theme.set(themeName)
+    }
+    api.kv.set(THEME_READY_KEY, true)
+    return
+  }
+
+  if (!matrixThemeSelected(api)) return
+  applyPreferredTheme(api, settings)
 }
 
 function syncLive(api: any, state: State, settings: Settings) {
@@ -892,9 +925,9 @@ function syncLive(api: any, state: State, settings: Settings) {
 const plugin = {
   id: "matrix-rain",
   async tui(api: any) {
-    await ensureTheme(api)
-
     let settings = readSettings(api)
+    await ensureTheme(api, settings)
+
     const state: State = {
       live: false,
       width: 0,
@@ -919,6 +952,10 @@ const plugin = {
     const updateSettings = (patch: Partial<Settings>) => {
       settings = { ...settings, ...patch }
       persistSettings(api, settings)
+
+      if (patch.backgroundTransparency !== undefined && matrixThemeSelected(api)) {
+        applyPreferredTheme(api, settings)
+      }
 
       if (!settings.enabled || !settings.intro) {
         state.introStartedAt = 0
@@ -950,7 +987,7 @@ const plugin = {
           skipFilter: true,
           current,
           options,
-          onSelect(option) {
+          onSelect(option: { onSelect?: () => void }) {
             option.onSelect?.()
           },
         }),
@@ -965,6 +1002,15 @@ const plugin = {
           description: "Toggle the Matrix rain overlay.",
           onSelect: () => {
             updateSettings({ enabled: !settings.enabled })
+            showSettings()
+          },
+        },
+        {
+          title: `Background transparency: ${settings.backgroundTransparency ? "On" : "Off"}`,
+          value: "backgroundTransparency",
+          description: "Toggle the bundled Matrix theme between transparent and opaque backgrounds.",
+          onSelect: () => {
+            updateSettings({ backgroundTransparency: !settings.backgroundTransparency })
             showSettings()
           },
         },
@@ -1087,18 +1133,19 @@ const plugin = {
               },
             }
           : undefined,
-        api.theme.selected !== THEME_NAME
+        api.theme.selected !== preferredThemeName(settings)
           ? {
               title: "Use matrix-console theme",
               value: "theme",
               description: "Switch the UI to the Matrix theme.",
               onSelect: () => {
-                if (!api.theme.has(THEME_NAME)) return
-                api.theme.set(THEME_NAME)
+                const themeName = preferredThemeName(settings)
+                if (!api.theme.has(themeName)) return
+                api.theme.set(themeName)
                 api.renderer.requestRender()
                 api.ui.toast({
                   variant: "success",
-                  message: "Switched to matrix-console",
+                  message: "Switched to matrix-console theme",
                 })
                 showSettings()
               },
@@ -1206,14 +1253,15 @@ const plugin = {
         title: "Use matrix-console theme",
         value: "plugin.matrix-rain.theme",
         category: "Plugin",
-        hidden: api.theme.selected === THEME_NAME,
+        hidden: api.theme.selected === preferredThemeName(settings),
         onSelect: () => {
-          if (!api.theme.has(THEME_NAME)) return
-          api.theme.set(THEME_NAME)
+          const themeName = preferredThemeName(settings)
+          if (!api.theme.has(themeName)) return
+          api.theme.set(themeName)
           api.renderer.requestRender()
           api.ui.toast({
             variant: "success",
-            message: "Switched to matrix-console",
+            message: "Switched to matrix-console theme",
           })
         },
       },

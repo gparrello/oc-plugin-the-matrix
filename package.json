@@ -15,6 +15,7 @@
   "files": [
     "index.ts",
     "matrix-console.json",
+    "matrix-console-opaque.json",
     "README.md",
     "LICENSE"
   ],
