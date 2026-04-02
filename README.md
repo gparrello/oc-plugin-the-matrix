@@ -4,6 +4,12 @@ Matrix-inspired TUI plugin for OpenCode.
 
 It adds a transparent green-phosphor theme, animated rain, a cinematic startup intro, and optional session text that briefly drops into place.
 
+## Screencast
+
+[![Screencast preview](./screencast-preview.gif)](./screencast.mp4)
+
+Click the preview to open the full video.
+
 ## Features
 
 - transparent `matrix-console` theme
