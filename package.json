@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "oc-plugin-the-matrix",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Matrix-inspired TUI rain, intro, and theme for OpenCode.",
   "type": "module",
   "main": "./dist/index.js",

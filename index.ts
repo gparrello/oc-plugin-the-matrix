@@ -63,6 +63,7 @@ const INTRO_FRAME = [
 ]
 
 const DENSITY_VALUE = {
+  off: 0,
   light: 0.24,
   medium: 0.4,
   heavy: 0.6,
@@ -91,6 +92,7 @@ const PAINT_LABEL = {
 } as const
 
 const DENSITY_LABEL = {
+  off: "Off",
   light: "Light",
   medium: "Medium",
   heavy: "Heavy",
@@ -263,6 +265,11 @@ const PAINT_CHOICES: Choice<PaintMode>[] = [
 ]
 
 const DENSITY_CHOICES: Choice<Density>[] = [
+  {
+    title: DENSITY_LABEL.off,
+    value: "off",
+    description: "Turn off the rain while keeping the plugin enabled.",
+  },
   {
     title: DENSITY_LABEL.light,
     value: "light",
@@ -649,7 +656,7 @@ function resolveRenderProfile(route: string, settings: Settings): RenderProfile 
       settings.scanlines ? "scan" : "clean",
       settings.glow ? "glow" : "plain",
     ].join(":"),
-    density: clamp(density, 0.08, 0.86),
+    density: clamp(density, 0, 0.86),
     speed: clamp(speed, 0.45, 1.8),
     paint: settings.paint,
     scanline: clamp(scanline, 0, 0.22),
@@ -668,7 +675,7 @@ function resolveIntroProfile(settings: Settings): RenderProfile {
       settings.scanlines ? "scan" : "clean",
       settings.glow ? "glow" : "plain",
     ].join(":"),
-    density: clamp(densityValue(settings) * 1.5, 0.4, 0.9),
+    density: clamp(densityValue(settings) * 1.5, 0, 0.9),
     speed: clamp(speedValue(settings) * 1.16, 0.7, 1.9),
     paint: "overlay",
     scanline: settings.scanlines ? 0.18 : 0,
@@ -827,32 +834,41 @@ function applyScanlines(buffer: any, elapsed: number, strength: number, palette:
   for (let y = 0; y < height; y++) {
     const lineShade = y % 2 === 0 ? strength * 0.08 : strength * 0.2
     const sweepWeight = Math.max(0, 1 - Math.abs(y - sweep) / 2.6) * strength
+    const fgMulR = 1 - lineShade
+    const fgMulG = 1 - lineShade * 0.45
+    const fgMulB = fgMulR
+    const bgMulR = 1 - lineShade * 0.15
+    const bgMulG = 1 - lineShade * 0.08
+    const bgMulB = bgMulR
+    const rowBase = y * width * 4
 
-    for (let x = 0; x < width; x++) {
-      const colorIndex = (y * width + x) * 4
-      fg[colorIndex] = clamp(fg[colorIndex] * (1 - lineShade) + sweepWeight * scan[0] * 0.08, 0, 1)
-      fg[colorIndex + 1] = clamp(fg[colorIndex + 1] * (1 - lineShade * 0.45) + sweepWeight * scan[1] * 0.08, 0, 1)
-      fg[colorIndex + 2] = clamp(fg[colorIndex + 2] * (1 - lineShade) + sweepWeight * scan[2] * 0.08, 0, 1)
-      bg[colorIndex] = clamp(bg[colorIndex] * (1 - lineShade * 0.15), 0, 1)
-      bg[colorIndex + 1] = clamp(bg[colorIndex + 1] * (1 - lineShade * 0.08) + sweepWeight * scan[1] * 0.018, 0, 1)
-      bg[colorIndex + 2] = clamp(bg[colorIndex + 2] * (1 - lineShade * 0.15) + sweepWeight * scan[2] * 0.004, 0, 1)
+    if (sweepWeight <= 0) {
+      for (let colorIndex = rowBase, rowEnd = rowBase + width * 4; colorIndex < rowEnd; colorIndex += 4) {
+        fg[colorIndex] = clamp(fg[colorIndex] * fgMulR, 0, 1)
+        fg[colorIndex + 1] = clamp(fg[colorIndex + 1] * fgMulG, 0, 1)
+        fg[colorIndex + 2] = clamp(fg[colorIndex + 2] * fgMulB, 0, 1)
+        bg[colorIndex] = clamp(bg[colorIndex] * bgMulR, 0, 1)
+        bg[colorIndex + 1] = clamp(bg[colorIndex + 1] * bgMulG, 0, 1)
+        bg[colorIndex + 2] = clamp(bg[colorIndex + 2] * bgMulB, 0, 1)
+      }
+      continue
+    }
+
+    const sweepAddFgR = sweepWeight * scan[0] * 0.08
+    const sweepAddFgG = sweepWeight * scan[1] * 0.08
+    const sweepAddFgB = sweepWeight * scan[2] * 0.08
+    const sweepAddBgG = sweepWeight * scan[1] * 0.018
+    const sweepAddBgB = sweepWeight * scan[2] * 0.004
+
+    for (let colorIndex = rowBase, rowEnd = rowBase + width * 4; colorIndex < rowEnd; colorIndex += 4) {
+      fg[colorIndex] = clamp(fg[colorIndex] * fgMulR + sweepAddFgR, 0, 1)
+      fg[colorIndex + 1] = clamp(fg[colorIndex + 1] * fgMulG + sweepAddFgG, 0, 1)
+      fg[colorIndex + 2] = clamp(fg[colorIndex + 2] * fgMulB + sweepAddFgB, 0, 1)
+      bg[colorIndex] = clamp(bg[colorIndex] * bgMulR, 0, 1)
+      bg[colorIndex + 1] = clamp(bg[colorIndex + 1] * bgMulG + sweepAddBgG, 0, 1)
+      bg[colorIndex + 2] = clamp(bg[colorIndex + 2] * bgMulB + sweepAddBgB, 0, 1)
     }
   }
-}
-
-function addGlow(
-  bg: Float32Array,
-  width: number,
-  height: number,
-  x: number,
-  y: number,
-  energy: number,
-  glowR: number,
-  glowG: number,
-  glowB: number,
-) {
-  if (x < 0 || x >= width || y < 0 || y >= height) return
-  addColor(bg, (y * width + x) * 4, glowR * energy * 0.15, glowG * energy * 0.15, glowB * energy * 0.15, energy * 0.28)
 }
 
 function applyGlow(buffer: any, strength: number, palette: AccentPalette) {
@@ -881,21 +897,80 @@ function applyGlow(buffer: any, strength: number, palette: AccentPalette) {
       const green = fg[colorIndex + 1]
       const blue = fg[colorIndex + 2]
       const brightness = Math.max(red, green, blue)
-      const colorMax = Math.max(red, green, blue, 0.0001)
+      if (brightness * strength * 0.7 < 0.015) continue
+
+      const colorMax = Math.max(brightness, 0.0001)
+      const invColorMax = 1 / colorMax
       const distance =
-        Math.abs(red / colorMax - accentR) +
-        Math.abs(green / colorMax - accentG) +
-        Math.abs(blue / colorMax - accentB)
+        Math.abs(red * invColorMax - accentR) +
+        Math.abs(green * invColorMax - accentG) +
+        Math.abs(blue * invColorMax - accentB)
       const alignment = clamp(1 - distance / 2.25, 0, 1)
       const energy = clamp(brightness * alignment * strength * 0.7, 0, 0.18)
       if (energy < 0.015) continue
 
       addColor(fg, colorIndex, glowR * energy * 0.22, glowG * energy * 0.22, glowB * energy * 0.22, 0)
-      addGlow(bg, width, height, x, y, energy, glowR, glowG, glowB)
-      addGlow(bg, width, height, x - 1, y, energy * 0.45, glowR, glowG, glowB)
-      addGlow(bg, width, height, x + 1, y, energy * 0.45, glowR, glowG, glowB)
-      addGlow(bg, width, height, x, y - 1, energy * 0.32, glowR, glowG, glowB)
-      addGlow(bg, width, height, x, y + 1, energy * 0.32, glowR, glowG, glowB)
+
+      let nextR = bg[colorIndex] + glowR * energy * 0.15
+      let nextG = bg[colorIndex + 1] + glowG * energy * 0.15
+      let nextB = bg[colorIndex + 2] + glowB * energy * 0.15
+      let nextA = bg[colorIndex + 3] + energy * 0.28
+      bg[colorIndex] = nextR > 1 ? 1 : nextR
+      bg[colorIndex + 1] = nextG > 1 ? 1 : nextG
+      bg[colorIndex + 2] = nextB > 1 ? 1 : nextB
+      bg[colorIndex + 3] = nextA > 1 ? 1 : nextA
+
+      if (x > 0) {
+        const leftIndex = colorIndex - 4
+        const leftEnergy = energy * 0.45
+        nextR = bg[leftIndex] + glowR * leftEnergy * 0.15
+        nextG = bg[leftIndex + 1] + glowG * leftEnergy * 0.15
+        nextB = bg[leftIndex + 2] + glowB * leftEnergy * 0.15
+        nextA = bg[leftIndex + 3] + leftEnergy * 0.28
+        bg[leftIndex] = nextR > 1 ? 1 : nextR
+        bg[leftIndex + 1] = nextG > 1 ? 1 : nextG
+        bg[leftIndex + 2] = nextB > 1 ? 1 : nextB
+        bg[leftIndex + 3] = nextA > 1 ? 1 : nextA
+      }
+
+      if (x + 1 < width) {
+        const rightIndex = colorIndex + 4
+        const rightEnergy = energy * 0.45
+        nextR = bg[rightIndex] + glowR * rightEnergy * 0.15
+        nextG = bg[rightIndex + 1] + glowG * rightEnergy * 0.15
+        nextB = bg[rightIndex + 2] + glowB * rightEnergy * 0.15
+        nextA = bg[rightIndex + 3] + rightEnergy * 0.28
+        bg[rightIndex] = nextR > 1 ? 1 : nextR
+        bg[rightIndex + 1] = nextG > 1 ? 1 : nextG
+        bg[rightIndex + 2] = nextB > 1 ? 1 : nextB
+        bg[rightIndex + 3] = nextA > 1 ? 1 : nextA
+      }
+
+      if (y > 0) {
+        const upIndex = colorIndex - width * 4
+        const upEnergy = energy * 0.32
+        nextR = bg[upIndex] + glowR * upEnergy * 0.15
+        nextG = bg[upIndex + 1] + glowG * upEnergy * 0.15
+        nextB = bg[upIndex + 2] + glowB * upEnergy * 0.15
+        nextA = bg[upIndex + 3] + upEnergy * 0.28
+        bg[upIndex] = nextR > 1 ? 1 : nextR
+        bg[upIndex + 1] = nextG > 1 ? 1 : nextG
+        bg[upIndex + 2] = nextB > 1 ? 1 : nextB
+        bg[upIndex + 3] = nextA > 1 ? 1 : nextA
+      }
+
+      if (y + 1 < height) {
+        const downIndex = colorIndex + width * 4
+        const downEnergy = energy * 0.32
+        nextR = bg[downIndex] + glowR * downEnergy * 0.15
+        nextG = bg[downIndex + 1] + glowG * downEnergy * 0.15
+        nextB = bg[downIndex + 2] + glowB * downEnergy * 0.15
+        nextA = bg[downIndex + 3] + downEnergy * 0.28
+        bg[downIndex] = nextR > 1 ? 1 : nextR
+        bg[downIndex + 1] = nextG > 1 ? 1 : nextG
+        bg[downIndex + 2] = nextB > 1 ? 1 : nextB
+        bg[downIndex + 3] = nextA > 1 ? 1 : nextA
+      }
     }
   }
 }
@@ -1626,14 +1701,6 @@ const plugin = {
         value: "plugin.matrix-rain.settings",
         category: "Plugin",
         onSelect: () => showSettings(),
-      },
-      {
-        title: settings.enabled ? "Disable Matrix plugin" : "Enable Matrix plugin",
-        value: "plugin.matrix-rain.toggle",
-        category: "Plugin",
-        onSelect: () => {
-          togglePluginEnabled()
-        },
       },
       settings.enabled && settings.intro
         ? {
