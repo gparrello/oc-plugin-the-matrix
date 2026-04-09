@@ -575,6 +575,14 @@ function deactivatePluginTheme(api: any) {
   return restorePreviousTheme(api) || restoreDefaultTheme(api)
 }
 
+function shouldRecoverPluginTheme(api: any) {
+  const themeName = typeof api.theme.selected === "string" ? api.theme.selected : ""
+  if (!themeName) return true
+  if (themeName === DEFAULT_THEME_NAME) return true
+  if (!api.theme.has(themeName)) return true
+  return false
+}
+
 function currentRouteName(api: any) {
   return typeof api.route.current?.name === "string" ? api.route.current.name : "unknown"
 }
@@ -1176,7 +1184,13 @@ async function ensureTheme(api: any, settings: Settings) {
     return
   }
 
-  if (!matrixThemeSelected(api)) return
+  if (!matrixThemeSelected(api)) {
+    if (shouldRecoverPluginTheme(api)) {
+      activatePluginTheme(api, settings)
+    }
+    return
+  }
+
   applyPreferredTheme(api, settings)
 }
 
