@@ -25,6 +25,14 @@ Click the preview to open the full video.
 
 ### Package install
 
+Published package:
+
+```bash
+npm view oc-plugin-the-matrix version
+```
+
+Current release: `0.2.0`
+
 Add the plugin by package name in your OpenCode config:
 
 ```json
@@ -42,6 +50,17 @@ If your OpenCode version supports it, you can also install it with:
 
 ```bash
 opencode plugin oc-plugin-the-matrix
+```
+
+If you want to pin a specific package version in config, use:
+
+```json
+{
+  "$schema": "https://opencode.ai/tui.json",
+  "plugin": [
+    "oc-plugin-the-matrix@0.2.0"
+  ]
+}
 ```
 
 ### Local development install
