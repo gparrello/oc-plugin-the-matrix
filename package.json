@@ -4,7 +4,16 @@
   "version": "0.1.0",
   "description": "Matrix-inspired TUI rain, intro, and theme for OpenCode.",
   "type": "module",
+  "main": "./dist/index.js",
   "license": "MIT",
+  "homepage": "https://github.com/gparrello/oc-plugin-the-matrix#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gparrello/oc-plugin-the-matrix.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gparrello/oc-plugin-the-matrix/issues"
+  },
   "keywords": [
     "opencode",
     "plugin",
@@ -12,31 +21,23 @@
     "matrix",
     "theme"
   ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc --project tsconfig.json && node ./scripts/copy-assets.mjs",
+    "prepublishOnly": "npm run build"
+  },
   "files": [
-    "index.ts",
-    "matrix-console.json",
-    "matrix-console-opaque.json",
-    "matrix-console-cyan.json",
-    "matrix-console-cyan-opaque.json",
-    "matrix-console-blue.json",
-    "matrix-console-blue-opaque.json",
-    "matrix-console-purple.json",
-    "matrix-console-purple-opaque.json",
-    "matrix-console-amber.json",
-    "matrix-console-amber-opaque.json",
-    "matrix-console-yellow.json",
-    "matrix-console-yellow-opaque.json",
-    "matrix-console-pink.json",
-    "matrix-console-pink-opaque.json",
-    "matrix-console-red.json",
-    "matrix-console-red-opaque.json",
+    "dist/",
     "README.md",
     "LICENSE"
   ],
   "exports": {
-    ".": "./index.ts",
-    "./tui": "./index.ts",
-    "./theme": "./matrix-console.json"
+    ".": "./dist/index.js",
+    "./tui": "./dist/index.js",
+    "./theme": "./dist/matrix-console.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
   },
   "engines": {
     "opencode": ">=1.3.13"
