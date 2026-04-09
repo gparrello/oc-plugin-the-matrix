@@ -1478,7 +1478,7 @@ const plugin = {
         },
       ].filter(Boolean)
 
-      openMenu("Matrix rain settings", options)
+      openMenu("Matrix settings", options)
     }
 
     const openChoice = <Value extends string>(
@@ -1499,7 +1499,7 @@ const plugin = {
           {
             title: "Back",
             value: "back",
-            description: "Return to Matrix rain settings.",
+            description: "Return to Matrix settings.",
             onSelect: () => showSettings(),
           },
         ],
@@ -1532,7 +1532,7 @@ const plugin = {
 
     api.command.register(() => [
       {
-        title: "Matrix rain settings",
+        title: "Matrix settings",
         value: "plugin.matrix-rain.settings",
         category: "Plugin",
         onSelect: () => showSettings(),

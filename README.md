@@ -94,11 +94,11 @@ This produces a publishable `dist/` directory containing the plugin entrypoint a
 
 ## Usage
 
-Open the command palette and run `Matrix rain settings`.
+Open the command palette and run `Matrix settings`.
 
 Available commands:
 
-- `Matrix rain settings`
+- `Matrix settings`
 - `Enable Matrix plugin` / `Disable Matrix plugin`
 - `Replay Matrix intro`
 - `Use matrix-console theme`
