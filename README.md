@@ -45,12 +45,13 @@ Open the command palette and run `Matrix rain settings`.
 Available commands:
 
 - `Matrix rain settings`
+- `Enable Matrix plugin` / `Disable Matrix plugin`
 - `Replay Matrix intro`
 - `Use matrix-console theme`
 
 ## Settings
 
-- `Effect`: master on/off switch
+- `Plugin enabled`: master on/off switch for the Matrix theme and effects
 - `Background transparency`: toggle the bundled Matrix theme between transparent and opaque backgrounds
 - `Scope`: `Home only` or `Everywhere`
 - `Route profile`: `Route-aware` or `Uniform`
@@ -64,6 +65,8 @@ Available commands:
 - `Intro length`: `Short`, `Normal`, or `Long`
 
 `Session text settle` is meant for `Scope: Everywhere` and applies only on session routes.
+
+When the plugin is turned off, it stops the Matrix effects and restores the previous theme when one is available, falling back to the default `opencode` theme.
 
 ## Repository Layout
 
