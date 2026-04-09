@@ -1,39 +1,43 @@
 const THEME_NAME = "matrix-console"
 const OPAQUE_THEME_NAME = "matrix-console-opaque"
-const THEME_PATH = new URL("./matrix-console.json", import.meta.url).pathname
-const OPAQUE_THEME_PATH = new URL("./matrix-console-opaque.json", import.meta.url).pathname
+const themePath = (file: string) => {
+  const pathname = decodeURIComponent(new URL(file, import.meta.url).pathname)
+  return /^\/[A-Za-z]:/.test(pathname) ? pathname.slice(1) : pathname
+}
+const THEME_PATH = themePath("./matrix-console.json")
+const OPAQUE_THEME_PATH = themePath("./matrix-console-opaque.json")
 const THEME_VARIANTS = {
   green: {
     transparent: { name: THEME_NAME, path: THEME_PATH },
     opaque: { name: OPAQUE_THEME_NAME, path: OPAQUE_THEME_PATH },
   },
   cyan: {
-    transparent: { name: "matrix-console-cyan", path: new URL("./matrix-console-cyan.json", import.meta.url).pathname },
-    opaque: { name: "matrix-console-cyan-opaque", path: new URL("./matrix-console-cyan-opaque.json", import.meta.url).pathname },
+    transparent: { name: "matrix-console-cyan", path: themePath("./matrix-console-cyan.json") },
+    opaque: { name: "matrix-console-cyan-opaque", path: themePath("./matrix-console-cyan-opaque.json") },
   },
   blue: {
-    transparent: { name: "matrix-console-blue", path: new URL("./matrix-console-blue.json", import.meta.url).pathname },
-    opaque: { name: "matrix-console-blue-opaque", path: new URL("./matrix-console-blue-opaque.json", import.meta.url).pathname },
+    transparent: { name: "matrix-console-blue", path: themePath("./matrix-console-blue.json") },
+    opaque: { name: "matrix-console-blue-opaque", path: themePath("./matrix-console-blue-opaque.json") },
   },
   purple: {
-    transparent: { name: "matrix-console-purple", path: new URL("./matrix-console-purple.json", import.meta.url).pathname },
-    opaque: { name: "matrix-console-purple-opaque", path: new URL("./matrix-console-purple-opaque.json", import.meta.url).pathname },
+    transparent: { name: "matrix-console-purple", path: themePath("./matrix-console-purple.json") },
+    opaque: { name: "matrix-console-purple-opaque", path: themePath("./matrix-console-purple-opaque.json") },
   },
   amber: {
-    transparent: { name: "matrix-console-amber", path: new URL("./matrix-console-amber.json", import.meta.url).pathname },
-    opaque: { name: "matrix-console-amber-opaque", path: new URL("./matrix-console-amber-opaque.json", import.meta.url).pathname },
+    transparent: { name: "matrix-console-amber", path: themePath("./matrix-console-amber.json") },
+    opaque: { name: "matrix-console-amber-opaque", path: themePath("./matrix-console-amber-opaque.json") },
   },
   yellow: {
-    transparent: { name: "matrix-console-yellow", path: new URL("./matrix-console-yellow.json", import.meta.url).pathname },
-    opaque: { name: "matrix-console-yellow-opaque", path: new URL("./matrix-console-yellow-opaque.json", import.meta.url).pathname },
+    transparent: { name: "matrix-console-yellow", path: themePath("./matrix-console-yellow.json") },
+    opaque: { name: "matrix-console-yellow-opaque", path: themePath("./matrix-console-yellow-opaque.json") },
   },
   pink: {
-    transparent: { name: "matrix-console-pink", path: new URL("./matrix-console-pink.json", import.meta.url).pathname },
-    opaque: { name: "matrix-console-pink-opaque", path: new URL("./matrix-console-pink-opaque.json", import.meta.url).pathname },
+    transparent: { name: "matrix-console-pink", path: themePath("./matrix-console-pink.json") },
+    opaque: { name: "matrix-console-pink-opaque", path: themePath("./matrix-console-pink-opaque.json") },
   },
   red: {
-    transparent: { name: "matrix-console-red", path: new URL("./matrix-console-red.json", import.meta.url).pathname },
-    opaque: { name: "matrix-console-red-opaque", path: new URL("./matrix-console-red-opaque.json", import.meta.url).pathname },
+    transparent: { name: "matrix-console-red", path: themePath("./matrix-console-red.json") },
+    opaque: { name: "matrix-console-red-opaque", path: themePath("./matrix-console-red-opaque.json") },
   },
 } as const
 const PLUGIN_THEME_NAMES = new Set(
@@ -190,6 +194,12 @@ type State = {
   prevWidth: number
   prevHeight: number
   prevRoute: string
+}
+
+type FrameContext = {
+  route: string
+  now: number
+  dt: number
 }
 
 type RenderProfile = {
@@ -462,20 +472,6 @@ function scaleRgb(color: Rgb, factor: number): Rgb {
   ]
 }
 
-function normalizeRgb(color: Rgb): Rgb {
-  const max = Math.max(color[0], color[1], color[2], 0.0001)
-  return [color[0] / max, color[1] / max, color[2] / max]
-}
-
-function colorAlignment(color: Rgb, accent: Rgb) {
-  const normalized = normalizeRgb(color)
-  const distance =
-    Math.abs(normalized[0] - accent[0]) +
-    Math.abs(normalized[1] - accent[1]) +
-    Math.abs(normalized[2] - accent[2])
-  return clamp(1 - distance / 2.25, 0, 1)
-}
-
 function toRgba(color: Rgb, alpha = 1): Rgba {
   return [color[0], color[1], color[2], alpha]
 }
@@ -617,8 +613,7 @@ function persistSettings(api: any, settings: Settings) {
   api.kv.set(ENABLED_KEY, settings.enabled)
 }
 
-function resolveRenderProfile(api: any, settings: Settings): RenderProfile {
-  const route = currentRouteName(api)
+function resolveRenderProfile(route: string, settings: Settings): RenderProfile {
   let density = densityValue(settings)
   let speed = speedValue(settings)
   let scanline = settings.scanlines ? 0.12 : 0
@@ -644,7 +639,16 @@ function resolveRenderProfile(api: any, settings: Settings): RenderProfile {
   }
 
   return {
-    key: [route, settings.profile, settings.density, settings.speed, settings.accentColor].join(":"),
+    key: [
+      settings.profile === "adaptive" ? route : "uniform",
+      settings.profile,
+      settings.density,
+      settings.speed,
+      settings.accentColor,
+      settings.paint,
+      settings.scanlines ? "scan" : "clean",
+      settings.glow ? "glow" : "plain",
+    ].join(":"),
     density: clamp(density, 0.08, 0.86),
     speed: clamp(speed, 0.45, 1.8),
     paint: settings.paint,
@@ -656,7 +660,14 @@ function resolveRenderProfile(api: any, settings: Settings): RenderProfile {
 
 function resolveIntroProfile(settings: Settings): RenderProfile {
   return {
-    key: ["intro", settings.accentColor, settings.density, settings.speed, settings.scanlines ? "scan" : "clean", settings.glow ? "glow" : "plain"].join(":"),
+    key: [
+      "intro",
+      settings.accentColor,
+      settings.density,
+      settings.speed,
+      settings.scanlines ? "scan" : "clean",
+      settings.glow ? "glow" : "plain",
+    ].join(":"),
     density: clamp(densityValue(settings) * 1.5, 0.4, 0.9),
     speed: clamp(speedValue(settings) * 1.16, 0.7, 1.9),
     paint: "overlay",
@@ -698,6 +709,14 @@ function resetTextFx(state: State) {
   state.prevRoute = ""
 }
 
+function ensurePrevChars(state: State, size: number) {
+  if (!state.prevChars || state.prevChars.length !== size) {
+    state.prevChars = new Uint32Array(size)
+  }
+
+  return state.prevChars
+}
+
 function syncState(state: State, width: number, height: number, profile: RenderProfile) {
   if (state.width === width && state.height === height && state.sceneKey === profile.key) return
 
@@ -725,10 +744,6 @@ function paintRgba(target: Float32Array, index: number, color: Rgba) {
   paintColor(target, index, color[0], color[1], color[2], color[3])
 }
 
-function addRgb(target: Float32Array, index: number, color: Rgb, alpha = 0) {
-  addColor(target, index, color[0], color[1], color[2], alpha)
-}
-
 function shouldPaintCell(existing: number, paint: PaintMode) {
   return paint === "overlay" || existing === EMPTY || existing === SPACE
 }
@@ -740,6 +755,13 @@ function paintColumn(buffer: any, x: number, column: Column, profile: RenderProf
   const height = buffer.height as number
   const head = Math.floor(column.head)
   const { paint, palette } = profile
+  const headColor = palette.head
+  const brightColor = palette.bright
+  const midColor = palette.mid
+  const dimColor = palette.dim
+  const dimToMidR = midColor[0] - dimColor[0]
+  const dimToMidG = midColor[1] - dimColor[1]
+  const dimToMidB = midColor[2] - dimColor[2]
 
   for (let offset = 0; offset < column.length; offset++) {
     const y = head - offset
@@ -756,23 +778,28 @@ function paintColumn(buffer: any, x: number, column: Column, profile: RenderProf
     chars[cellIndex] = pickGlyph()
 
     if (offset === 0) {
-      paintRgba(fg, colorIndex, toRgba(palette.head))
+      paintColor(fg, colorIndex, headColor[0], headColor[1], headColor[2], 1)
       continue
     }
 
     if (offset < 3) {
-      paintRgba(fg, colorIndex, toRgba(palette.bright))
+      paintColor(fg, colorIndex, brightColor[0], brightColor[1], brightColor[2], 1)
       continue
     }
 
-    paintRgba(fg, colorIndex, toRgba(mixRgb(palette.dim, palette.mid, fade)))
+    paintColor(
+      fg,
+      colorIndex,
+      dimColor[0] + dimToMidR * fade,
+      dimColor[1] + dimToMidG * fade,
+      dimColor[2] + dimToMidB * fade,
+      1,
+    )
   }
 }
 
-function renderRain(buffer: any, state: State, profile: RenderProfile, deltaTime: number) {
+function renderRain(buffer: any, state: State, profile: RenderProfile, dt: number) {
   syncState(state, buffer.width as number, buffer.height as number, profile)
-
-  const dt = clamp(deltaTime / 1000, 0.016, 0.11)
 
   for (let x = 0; x < state.columns.length; x++) {
     const column = state.columns[x]
@@ -813,9 +840,19 @@ function applyScanlines(buffer: any, elapsed: number, strength: number, palette:
   }
 }
 
-function addGlow(bg: Float32Array, width: number, height: number, x: number, y: number, energy: number, glow: Rgb) {
+function addGlow(
+  bg: Float32Array,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  energy: number,
+  glowR: number,
+  glowG: number,
+  glowB: number,
+) {
   if (x < 0 || x >= width || y < 0 || y >= height) return
-  addColor(bg, (y * width + x) * 4, glow[0] * energy * 0.15, glow[1] * energy * 0.15, glow[2] * energy * 0.15, energy * 0.28)
+  addColor(bg, (y * width + x) * 4, glowR * energy * 0.15, glowG * energy * 0.15, glowB * energy * 0.15, energy * 0.28)
 }
 
 function applyGlow(buffer: any, strength: number, palette: AccentPalette) {
@@ -825,7 +862,14 @@ function applyGlow(buffer: any, strength: number, palette: AccentPalette) {
   const bg = buffer.buffers.bg as Float32Array
   const width = buffer.width as number
   const height = buffer.height as number
-  const accent = normalizeRgb(palette.glow)
+  const glow = palette.glow
+  const glowMax = Math.max(glow[0], glow[1], glow[2], 0.0001)
+  const accentR = glow[0] / glowMax
+  const accentG = glow[1] / glowMax
+  const accentB = glow[2] / glowMax
+  const glowR = glow[0]
+  const glowG = glow[1]
+  const glowB = glow[2]
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -837,15 +881,21 @@ function applyGlow(buffer: any, strength: number, palette: AccentPalette) {
       const green = fg[colorIndex + 1]
       const blue = fg[colorIndex + 2]
       const brightness = Math.max(red, green, blue)
-      const energy = clamp(brightness * colorAlignment([red, green, blue], accent) * strength * 0.7, 0, 0.18)
+      const colorMax = Math.max(red, green, blue, 0.0001)
+      const distance =
+        Math.abs(red / colorMax - accentR) +
+        Math.abs(green / colorMax - accentG) +
+        Math.abs(blue / colorMax - accentB)
+      const alignment = clamp(1 - distance / 2.25, 0, 1)
+      const energy = clamp(brightness * alignment * strength * 0.7, 0, 0.18)
       if (energy < 0.015) continue
 
-      addRgb(fg, colorIndex, scaleRgb(palette.glow, energy * 0.22), 0)
-      addGlow(bg, width, height, x, y, energy, palette.glow)
-      addGlow(bg, width, height, x - 1, y, energy * 0.45, palette.glow)
-      addGlow(bg, width, height, x + 1, y, energy * 0.45, palette.glow)
-      addGlow(bg, width, height, x, y - 1, energy * 0.32, palette.glow)
-      addGlow(bg, width, height, x, y + 1, energy * 0.32, palette.glow)
+      addColor(fg, colorIndex, glowR * energy * 0.22, glowG * energy * 0.22, glowB * energy * 0.22, 0)
+      addGlow(bg, width, height, x, y, energy, glowR, glowG, glowB)
+      addGlow(bg, width, height, x - 1, y, energy * 0.45, glowR, glowG, glowB)
+      addGlow(bg, width, height, x + 1, y, energy * 0.45, glowR, glowG, glowB)
+      addGlow(bg, width, height, x, y - 1, energy * 0.32, glowR, glowG, glowB)
+      addGlow(bg, width, height, x, y + 1, energy * 0.32, glowR, glowG, glowB)
     }
   }
 }
@@ -864,17 +914,25 @@ function paintIntroBackdrop(buffer: any, palette: AccentPalette) {
   const fgColor = mixRgb(palette.deep, palette.dim, 0.55)
   const topBg = scaleRgb(palette.deep, 0.4)
   const bottomBg = scaleRgb(palette.mid, 0.14)
+  const fgR = fgColor[0]
+  const fgG = fgColor[1]
+  const fgB = fgColor[2]
+  const bgDeltaR = bottomBg[0] - topBg[0]
+  const bgDeltaG = bottomBg[1] - topBg[1]
+  const bgDeltaB = bottomBg[2] - topBg[2]
 
   for (let y = 0; y < height; y++) {
     const fade = y / Math.max(1, height - 1)
-    const bgColor = mixRgb(topBg, bottomBg, fade)
+    const bgR = topBg[0] + bgDeltaR * fade
+    const bgG = topBg[1] + bgDeltaG * fade
+    const bgB = topBg[2] + bgDeltaB * fade
 
     for (let x = 0; x < width; x++) {
       const cellIndex = y * width + x
       const colorIndex = cellIndex * 4
       chars[cellIndex] = SPACE
-      paintRgba(fg, colorIndex, toRgba(fgColor))
-      paintRgba(bg, colorIndex, toRgba(bgColor))
+      paintColor(fg, colorIndex, fgR, fgG, fgB, 1)
+      paintColor(bg, colorIndex, bgR, bgG, bgB, 1)
     }
   }
 }
@@ -901,12 +959,13 @@ function easeOutCubic(value: number) {
   return 1 - (1 - progress) ** 3
 }
 
-function textFxEnabled(api: any, settings: Settings) {
-  return settings.enabled && settings.textFall && settings.scope === "all" && currentRouteName(api) === "session"
+function textFxEnabled(route: string, settings: Settings) {
+  return settings.enabled && settings.textFall && settings.scope === "all" && route === "session"
 }
 
 function snapshotChars(state: State, chars: Uint32Array, width: number, height: number, route: string) {
-  state.prevChars = Uint32Array.from(chars)
+  const prevChars = ensurePrevChars(state, chars.length)
+  prevChars.set(chars)
   state.prevWidth = width
   state.prevHeight = height
   state.prevRoute = route
@@ -916,13 +975,12 @@ function visibleCell(char: number) {
   return char !== EMPTY && char !== SPACE
 }
 
-function syncTextDrops(buffer: any, state: State, settings: Settings, api: any) {
+function syncTextDrops(buffer: any, state: State, settings: Settings, route: string) {
   const chars = buffer.buffers.char as Uint32Array
   const width = buffer.width as number
   const height = buffer.height as number
-  const route = currentRouteName(api)
 
-  if (!textFxEnabled(api, settings)) {
+  if (!textFxEnabled(route, settings)) {
     resetTextFx(state)
     return
   }
@@ -986,6 +1044,13 @@ function renderTextDrops(buffer: any, state: State, profile: RenderProfile, delt
   const width = buffer.width as number
   const height = buffer.height as number
   const palette = profile.palette
+  const headColor = palette.head
+  const brightColor = palette.bright
+  const midColor = palette.mid
+  const dimColor = palette.dim
+  const dimToMidR = midColor[0] - dimColor[0]
+  const dimToMidG = midColor[1] - dimColor[1]
+  const dimToMidB = midColor[2] - dimColor[2]
 
   for (const [cellIndex, drop] of state.textDrops) {
     if (drop.x >= width || drop.y >= height) {
@@ -1002,10 +1067,22 @@ function renderTextDrops(buffer: any, state: State, profile: RenderProfile, delt
 
     if (progress < 0.88) {
       chars[targetIndex] = progress > 0.7 ? pickGlyph() : SPACE
-      const settleColor = progress > 0.7 ? palette.bright : mixRgb(palette.dim, palette.mid, 0.4 + progress * 0.35)
-      paintRgba(fg, targetIndex * 4, toRgba(settleColor))
+      const settleIndex = targetIndex * 4
+      if (progress > 0.7) {
+        paintColor(fg, settleIndex, brightColor[0], brightColor[1], brightColor[2], 1)
+      } else {
+        const settleFade = 0.4 + progress * 0.35
+        paintColor(
+          fg,
+          settleIndex,
+          dimColor[0] + dimToMidR * settleFade,
+          dimColor[1] + dimToMidG * settleFade,
+          dimColor[2] + dimToMidB * settleFade,
+          1,
+        )
+      }
     } else {
-      addRgb(fg, targetIndex * 4, scaleRgb(palette.dim, 0.6), 0)
+      addColor(fg, targetIndex * 4, dimColor[0] * 0.6, dimColor[1] * 0.6, dimColor[2] * 0.6, 0)
     }
 
     for (let offset = 0; offset < trail; offset++) {
@@ -1023,12 +1100,19 @@ function renderTextDrops(buffer: any, state: State, profile: RenderProfile, delt
       chars[index] = pickGlyph()
 
       if (offset === 0) {
-        paintRgba(fg, colorIndex, toRgba(palette.head))
+        paintColor(fg, colorIndex, headColor[0], headColor[1], headColor[2], 1)
         continue
       }
 
       const fade = 1 - offset / trail
-      paintRgba(fg, colorIndex, toRgba(mixRgb(palette.dim, palette.mid, fade)))
+      paintColor(
+        fg,
+        colorIndex,
+        dimColor[0] + dimToMidR * fade,
+        dimColor[1] + dimToMidG * fade,
+        dimColor[2] + dimToMidB * fade,
+        1,
+      )
     }
 
     if (progress >= 1) {
@@ -1085,22 +1169,21 @@ function introStatus(settings: Settings) {
   ].join(" // ")
 }
 
-function introProgress(state: State, settings: Settings) {
+function introProgress(state: State, settings: Settings, now: number) {
   const duration = introDuration(settings)
   if (!state.introStartedAt || duration <= 0) return 1
-  return clamp((Date.now() - state.introStartedAt) / duration, 0, 1)
+  return clamp((now - state.introStartedAt) / duration, 0, 1)
 }
 
-function paintIntroText(buffer: any, state: State, settings: Settings) {
+function paintIntroText(buffer: any, state: State, settings: Settings, palette: AccentPalette, now: number) {
   const width = buffer.width as number
   const height = buffer.height as number
-  const progress = introProgress(state, settings)
+  const progress = introProgress(state, settings, now)
   const headerY = Math.max(1, Math.floor(height * 0.18))
   const frameY = Math.max(headerY + 3, Math.floor(height * 0.42) - 2)
   const footerY = Math.min(height - 4, frameY + INTRO_FRAME.length + 2)
   const statusY = Math.min(height - 2, footerY + 2)
   const percent = String(Math.round(progress * 100)).padStart(3, "0")
-  const palette = accentPalette(settings)
   const headerColor = toRgba(mixRgb(palette.mid, palette.bright, 0.55))
   const subtitleColor = toRgba(mixRgb(palette.dim, palette.mid, 0.85))
   const frameBaseColor = toRgba(mixRgb(palette.dim, palette.mid, 0.75))
@@ -1154,20 +1237,19 @@ function startIntro(state: State, settings: Settings) {
   resetScene(state)
 }
 
-function introActive(state: State, settings: Settings) {
-  return settings.enabled && settings.intro && Date.now() < state.introEndsAt
+function introActive(state: State, settings: Settings, now: number) {
+  return settings.enabled && settings.intro && now < state.introEndsAt
 }
 
-function renderIntro(buffer: any, state: State, settings: Settings, deltaTime: number) {
-  const profile = resolveIntroProfile(settings)
+function renderIntro(buffer: any, state: State, settings: Settings, profile: RenderProfile, dt: number, now: number) {
   paintIntroBackdrop(buffer, profile.palette)
-  renderRain(buffer, state, profile, deltaTime)
-  paintIntroText(buffer, state, settings)
+  renderRain(buffer, state, profile, dt)
+  paintIntroText(buffer, state, settings, profile.palette, now)
   applyPostFx(buffer, state, profile)
 }
 
-function routeEnabled(api: any, settings: Settings) {
-  return settings.scope === "all" || currentRouteName(api) === "home"
+function routeEnabled(route: string, settings: Settings) {
+  return settings.scope === "all" || route === "home"
 }
 
 async function ensureTheme(api: any, settings: Settings) {
@@ -1194,8 +1276,10 @@ async function ensureTheme(api: any, settings: Settings) {
   applyPreferredTheme(api, settings)
 }
 
-function syncLive(api: any, state: State, settings: Settings) {
-  const shouldLive = introActive(state, settings) || (settings.enabled && routeEnabled(api, settings))
+function syncLive(api: any, state: State, settings: Settings, frame?: Partial<FrameContext>) {
+  const route = frame?.route ?? currentRouteName(api)
+  const now = frame?.now ?? Date.now()
+  const shouldLive = introActive(state, settings, now) || (settings.enabled && routeEnabled(route, settings))
   if (shouldLive === state.live) return shouldLive
 
   if (shouldLive) {
@@ -1509,21 +1593,27 @@ const plugin = {
     }
 
     const post = (buffer: any, deltaTime: number) => {
-      if (!syncLive(api, state, settings)) {
+      const frame = {
+        route: currentRouteName(api),
+        now: Date.now(),
+        dt: clamp(deltaTime / 1000, 0.016, 0.11),
+      }
+
+      if (!syncLive(api, state, settings, frame)) {
         return
       }
 
-      state.elapsed += clamp(deltaTime / 1000, 0.016, 0.11)
+      state.elapsed += frame.dt
 
-      if (introActive(state, settings)) {
-        renderIntro(buffer, state, settings, deltaTime)
+      if (settings.enabled && settings.intro && frame.now < state.introEndsAt) {
+        renderIntro(buffer, state, settings, resolveIntroProfile(settings), frame.dt, frame.now)
         return
       }
 
-      syncTextDrops(buffer, state, settings, api)
+      syncTextDrops(buffer, state, settings, frame.route)
 
-      const profile = resolveRenderProfile(api, settings)
-      renderRain(buffer, state, profile, deltaTime)
+      const profile = resolveRenderProfile(frame.route, settings)
+      renderRain(buffer, state, profile, frame.dt)
       renderTextDrops(buffer, state, profile, deltaTime)
       applyPostFx(buffer, state, profile)
     }
