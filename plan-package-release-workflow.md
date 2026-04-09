@@ -104,19 +104,19 @@ This workflow should use an npm token stored in GitHub Actions secrets.
 
 ## Suggested Files To Add Later
 
-- `.github/workflows/ci.yml`
-- `.github/workflows/release.yml`
+- `.github/workflows/ci.yml` ✅
+- `.github/workflows/release.yml` ✅
 
 ## Practical Next Steps
 
-1. bump version to `0.2.0`
-2. publish one release manually
-3. verify package-name install in a clean OpenCode environment
-4. add CI workflow
-5. add publish-on-tag workflow
+1. publish one release manually
+2. verify package-name install in a clean OpenCode environment
+3. configure `NPM_TOKEN` in GitHub Actions secrets
+4. create a git tag such as `v0.2.0` after the manual publish flow is proven
 
 ## Notes
 
 - start with manual release so packaging problems are easier to debug
 - only automate npm publish once one manual publish has succeeded
 - keep `npm pack` as part of CI even after publish automation is added
+- CI and release workflow scaffolding now exist in the repo, but the npm publish step still depends on a configured `NPM_TOKEN`
