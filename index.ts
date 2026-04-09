@@ -2,9 +2,51 @@ const THEME_NAME = "matrix-console"
 const OPAQUE_THEME_NAME = "matrix-console-opaque"
 const THEME_PATH = new URL("./matrix-console.json", import.meta.url).pathname
 const OPAQUE_THEME_PATH = new URL("./matrix-console-opaque.json", import.meta.url).pathname
+const THEME_VARIANTS = {
+  green: {
+    transparent: { name: THEME_NAME, path: THEME_PATH },
+    opaque: { name: OPAQUE_THEME_NAME, path: OPAQUE_THEME_PATH },
+  },
+  cyan: {
+    transparent: { name: "matrix-console-cyan", path: new URL("./matrix-console-cyan.json", import.meta.url).pathname },
+    opaque: { name: "matrix-console-cyan-opaque", path: new URL("./matrix-console-cyan-opaque.json", import.meta.url).pathname },
+  },
+  blue: {
+    transparent: { name: "matrix-console-blue", path: new URL("./matrix-console-blue.json", import.meta.url).pathname },
+    opaque: { name: "matrix-console-blue-opaque", path: new URL("./matrix-console-blue-opaque.json", import.meta.url).pathname },
+  },
+  purple: {
+    transparent: { name: "matrix-console-purple", path: new URL("./matrix-console-purple.json", import.meta.url).pathname },
+    opaque: { name: "matrix-console-purple-opaque", path: new URL("./matrix-console-purple-opaque.json", import.meta.url).pathname },
+  },
+  amber: {
+    transparent: { name: "matrix-console-amber", path: new URL("./matrix-console-amber.json", import.meta.url).pathname },
+    opaque: { name: "matrix-console-amber-opaque", path: new URL("./matrix-console-amber-opaque.json", import.meta.url).pathname },
+  },
+  yellow: {
+    transparent: { name: "matrix-console-yellow", path: new URL("./matrix-console-yellow.json", import.meta.url).pathname },
+    opaque: { name: "matrix-console-yellow-opaque", path: new URL("./matrix-console-yellow-opaque.json", import.meta.url).pathname },
+  },
+  pink: {
+    transparent: { name: "matrix-console-pink", path: new URL("./matrix-console-pink.json", import.meta.url).pathname },
+    opaque: { name: "matrix-console-pink-opaque", path: new URL("./matrix-console-pink-opaque.json", import.meta.url).pathname },
+  },
+  red: {
+    transparent: { name: "matrix-console-red", path: new URL("./matrix-console-red.json", import.meta.url).pathname },
+    opaque: { name: "matrix-console-red-opaque", path: new URL("./matrix-console-red-opaque.json", import.meta.url).pathname },
+  },
+} as const
+const PLUGIN_THEME_NAMES = new Set(
+  Object.values(THEME_VARIANTS).flatMap((variant) => [variant.transparent.name, variant.opaque.name]),
+)
+const PLUGIN_THEME_PATHS = Array.from(
+  new Set(Object.values(THEME_VARIANTS).flatMap((variant) => [variant.transparent.path, variant.opaque.path])),
+)
 const SETTINGS_KEY = "matrix-rain.settings"
 const ENABLED_KEY = "matrix-rain.enabled"
 const THEME_READY_KEY = "matrix-rain.theme-ready"
+const PREVIOUS_THEME_KEY = "matrix-rain.previous-theme"
+const DEFAULT_THEME_NAME = "opencode"
 const GLYPHS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%&*+-=<>[]{}|\\"
 const EMPTY = 0
 const SPACE = 32
@@ -67,8 +109,20 @@ const PROFILE_LABEL = {
   uniform: "Uniform",
 } as const
 
+const ACCENT_LABEL = {
+  green: "Green",
+  cyan: "Cyan",
+  blue: "Blue",
+  purple: "Purple",
+  amber: "Amber",
+  yellow: "Yellow",
+  pink: "Pink",
+  red: "Red",
+} as const
+
 const DEFAULT_SETTINGS = {
   enabled: true,
+  accentColor: "green",
   backgroundTransparency: true,
   scope: "all",
   paint: "empty",
@@ -88,9 +142,11 @@ type Density = keyof typeof DENSITY_LABEL
 type Speed = keyof typeof SPEED_LABEL
 type IntroLength = keyof typeof INTRO_LABEL
 type ProfileMode = keyof typeof PROFILE_LABEL
+type AccentColor = keyof typeof ACCENT_LABEL
 
 type Settings = {
   enabled: boolean
+  accentColor: AccentColor
   backgroundTransparency: boolean
   scope: Scope
   paint: PaintMode
@@ -143,12 +199,31 @@ type RenderProfile = {
   paint: PaintMode
   scanline: number
   glow: number
+  palette: AccentPalette
 }
 
 type Choice<Value extends string> = {
   title: string
   value: Value
   description: string
+}
+
+type ThemeVariant = {
+  name: string
+  path: string
+}
+
+type Rgb = [number, number, number]
+type Rgba = [number, number, number, number]
+
+type AccentPalette = {
+  head: Rgb
+  bright: Rgb
+  mid: Rgb
+  dim: Rgb
+  deep: Rgb
+  glow: Rgb
+  scan: Rgb
 }
 
 const SCOPE_CHOICES: Choice<Scope>[] = [
@@ -244,8 +319,165 @@ const PROFILE_CHOICES: Choice<ProfileMode>[] = [
   },
 ]
 
+const ACCENT_CHOICES: Choice<AccentColor>[] = [
+  {
+    title: ACCENT_LABEL.green,
+    value: "green",
+    description: "The original green-phosphor Matrix look.",
+  },
+  {
+    title: ACCENT_LABEL.cyan,
+    value: "cyan",
+    description: "A cool cyan terminal glow.",
+  },
+  {
+    title: ACCENT_LABEL.blue,
+    value: "blue",
+    description: "A deeper electric-blue variant.",
+  },
+  {
+    title: ACCENT_LABEL.purple,
+    value: "purple",
+    description: "A violet neon interpretation.",
+  },
+  {
+    title: ACCENT_LABEL.amber,
+    value: "amber",
+    description: "A warm amber CRT style.",
+  },
+  {
+    title: ACCENT_LABEL.yellow,
+    value: "yellow",
+    description: "A bright monochrome monitor glow.",
+  },
+  {
+    title: ACCENT_LABEL.pink,
+    value: "pink",
+    description: "A neon magenta terminal glow.",
+  },
+  {
+    title: ACCENT_LABEL.red,
+    value: "red",
+    description: "A true high-alert red variant.",
+  },
+]
+
+const ACCENT_PALETTES: Record<AccentColor, AccentPalette> = {
+  green: {
+    head: [0.92, 1, 0.88],
+    bright: [0.48, 0.96, 0.58],
+    mid: [0.18, 0.72, 0.34],
+    dim: [0.04, 0.18, 0.05],
+    deep: [0.01, 0.11, 0.04],
+    glow: [0.24, 0.88, 0.3],
+    scan: [0.18, 0.92, 0.28],
+  },
+  cyan: {
+    head: [0.86, 0.98, 1],
+    bright: [0.44, 0.9, 0.98],
+    mid: [0.14, 0.62, 0.78],
+    dim: [0.04, 0.16, 0.22],
+    deep: [0.01, 0.07, 0.1],
+    glow: [0.14, 0.76, 0.9],
+    scan: [0.12, 0.78, 0.92],
+  },
+  blue: {
+    head: [0.88, 0.93, 1],
+    bright: [0.48, 0.68, 0.98],
+    mid: [0.18, 0.4, 0.82],
+    dim: [0.03, 0.09, 0.22],
+    deep: [0.01, 0.04, 0.1],
+    glow: [0.16, 0.38, 0.9],
+    scan: [0.12, 0.34, 0.88],
+  },
+  purple: {
+    head: [0.96, 0.88, 1],
+    bright: [0.78, 0.5, 0.98],
+    mid: [0.48, 0.22, 0.82],
+    dim: [0.14, 0.05, 0.22],
+    deep: [0.06, 0.02, 0.1],
+    glow: [0.72, 0.26, 0.9],
+    scan: [0.66, 0.2, 0.84],
+  },
+  amber: {
+    head: [1, 0.96, 0.84],
+    bright: [0.98, 0.78, 0.36],
+    mid: [0.82, 0.54, 0.12],
+    dim: [0.22, 0.12, 0.02],
+    deep: [0.1, 0.05, 0.01],
+    glow: [0.92, 0.52, 0.12],
+    scan: [0.9, 0.58, 0.16],
+  },
+  yellow: {
+    head: [1, 1, 0.88],
+    bright: [0.98, 0.9, 0.42],
+    mid: [0.82, 0.72, 0.16],
+    dim: [0.24, 0.18, 0.03],
+    deep: [0.11, 0.08, 0.01],
+    glow: [0.92, 0.82, 0.14],
+    scan: [0.92, 0.84, 0.18],
+  },
+  pink: {
+    head: [1, 0.92, 0.92],
+    bright: [0.98, 0.54, 0.58],
+    mid: [0.82, 0.22, 0.28],
+    dim: [0.22, 0.05, 0.06],
+    deep: [0.1, 0.02, 0.03],
+    glow: [0.92, 0.24, 0.28],
+    scan: [0.88, 0.18, 0.22],
+  },
+  red: {
+    head: [1, 0.9, 0.9],
+    bright: [1, 0.32, 0.24],
+    mid: [0.92, 0.08, 0.06],
+    dim: [0.28, 0.02, 0.02],
+    deep: [0.12, 0.01, 0.01],
+    glow: [1, 0.06, 0.04],
+    scan: [0.96, 0.04, 0.03],
+  },
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
+}
+
+function mix(valueA: number, valueB: number, weight: number) {
+  const ratio = clamp(weight, 0, 1)
+  return valueA + (valueB - valueA) * ratio
+}
+
+function mixRgb(start: Rgb, end: Rgb, weight: number): Rgb {
+  return [
+    mix(start[0], end[0], weight),
+    mix(start[1], end[1], weight),
+    mix(start[2], end[2], weight),
+  ]
+}
+
+function scaleRgb(color: Rgb, factor: number): Rgb {
+  return [
+    clamp(color[0] * factor, 0, 1),
+    clamp(color[1] * factor, 0, 1),
+    clamp(color[2] * factor, 0, 1),
+  ]
+}
+
+function normalizeRgb(color: Rgb): Rgb {
+  const max = Math.max(color[0], color[1], color[2], 0.0001)
+  return [color[0] / max, color[1] / max, color[2] / max]
+}
+
+function colorAlignment(color: Rgb, accent: Rgb) {
+  const normalized = normalizeRgb(color)
+  const distance =
+    Math.abs(normalized[0] - accent[0]) +
+    Math.abs(normalized[1] - accent[1]) +
+    Math.abs(normalized[2] - accent[2])
+  return clamp(1 - distance / 2.25, 0, 1)
+}
+
+function toRgba(color: Rgb, alpha = 1): Rgba {
+  return [color[0], color[1], color[2], alpha]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -282,19 +514,65 @@ function introDuration(settings: Settings) {
   return INTRO_VALUE[settings.introLength]
 }
 
-function preferredThemeName(settings: Pick<Settings, "backgroundTransparency">) {
-  return settings.backgroundTransparency ? THEME_NAME : OPAQUE_THEME_NAME
+function accentPalette(settings: Pick<Settings, "accentColor">) {
+  return ACCENT_PALETTES[settings.accentColor]
+}
+
+function preferredThemeVariant(settings: Pick<Settings, "accentColor" | "backgroundTransparency">): ThemeVariant {
+  const variant = THEME_VARIANTS[settings.accentColor]
+  return settings.backgroundTransparency ? variant.transparent : variant.opaque
+}
+
+function preferredThemeName(settings: Pick<Settings, "accentColor" | "backgroundTransparency">) {
+  return preferredThemeVariant(settings).name
 }
 
 function matrixThemeSelected(api: any) {
-  return api.theme.selected === THEME_NAME || api.theme.selected === OPAQUE_THEME_NAME
+  return typeof api.theme.selected === "string" && PLUGIN_THEME_NAMES.has(api.theme.selected)
 }
 
-function applyPreferredTheme(api: any, settings: Pick<Settings, "backgroundTransparency">) {
+function rememberPreviousTheme(api: any) {
+  const themeName = typeof api.theme.selected === "string" ? api.theme.selected : ""
+  if (!themeName || PLUGIN_THEME_NAMES.has(themeName)) return false
+  api.kv.set(PREVIOUS_THEME_KEY, themeName)
+  return true
+}
+
+function restorePreviousTheme(api: any) {
+  const themeName = api.kv.get(PREVIOUS_THEME_KEY, undefined)
+  if (typeof themeName !== "string" || !themeName || !api.theme.has(themeName)) return false
+  if (api.theme.selected === themeName) return false
+  api.theme.set(themeName)
+  return true
+}
+
+function restoreDefaultTheme(api: any) {
+  if (!api.theme.has(DEFAULT_THEME_NAME) || api.theme.selected === DEFAULT_THEME_NAME) return false
+  api.theme.set(DEFAULT_THEME_NAME)
+  return true
+}
+
+function applyPreferredTheme(api: any, settings: Pick<Settings, "accentColor" | "backgroundTransparency">) {
   const themeName = preferredThemeName(settings)
   if (!api.theme.has(themeName) || api.theme.selected === themeName) return false
   api.theme.set(themeName)
   return true
+}
+
+function activatePluginTheme(api: any, settings: Pick<Settings, "accentColor" | "backgroundTransparency">) {
+  const themeName = preferredThemeName(settings)
+  if (!api.theme.has(themeName)) return false
+  rememberPreviousTheme(api)
+  if (api.theme.selected !== themeName) {
+    api.theme.set(themeName)
+  }
+  api.kv.set(THEME_READY_KEY, true)
+  return true
+}
+
+function deactivatePluginTheme(api: any) {
+  if (!matrixThemeSelected(api)) return false
+  return restorePreviousTheme(api) || restoreDefaultTheme(api)
 }
 
 function currentRouteName(api: any) {
@@ -308,6 +586,7 @@ function readSettings(api: any): Settings {
 
   return {
     enabled: typeof settings.enabled === "boolean" ? settings.enabled : legacyEnabled,
+    accentColor: readEnum(settings.accentColor, ACCENT_LABEL, DEFAULT_SETTINGS.accentColor),
     backgroundTransparency:
       typeof settings.backgroundTransparency === "boolean"
         ? settings.backgroundTransparency
@@ -357,23 +636,25 @@ function resolveRenderProfile(api: any, settings: Settings): RenderProfile {
   }
 
   return {
-    key: [route, settings.profile, settings.density, settings.speed].join(":"),
+    key: [route, settings.profile, settings.density, settings.speed, settings.accentColor].join(":"),
     density: clamp(density, 0.08, 0.86),
     speed: clamp(speed, 0.45, 1.8),
     paint: settings.paint,
     scanline: clamp(scanline, 0, 0.22),
     glow: clamp(glow, 0, 0.2),
+    palette: accentPalette(settings),
   }
 }
 
 function resolveIntroProfile(settings: Settings): RenderProfile {
   return {
-    key: ["intro", settings.density, settings.speed, settings.scanlines ? "scan" : "clean", settings.glow ? "glow" : "plain"].join(":"),
+    key: ["intro", settings.accentColor, settings.density, settings.speed, settings.scanlines ? "scan" : "clean", settings.glow ? "glow" : "plain"].join(":"),
     density: clamp(densityValue(settings) * 1.5, 0.4, 0.9),
     speed: clamp(speedValue(settings) * 1.16, 0.7, 1.9),
     paint: "overlay",
     scanline: settings.scanlines ? 0.18 : 0,
     glow: settings.glow ? 0.17 : 0,
+    palette: accentPalette(settings),
   }
 }
 
@@ -432,16 +713,25 @@ function addColor(target: Float32Array, index: number, r: number, g: number, b: 
   target[index + 3] = clamp(target[index + 3] + a, 0, 1)
 }
 
+function paintRgba(target: Float32Array, index: number, color: Rgba) {
+  paintColor(target, index, color[0], color[1], color[2], color[3])
+}
+
+function addRgb(target: Float32Array, index: number, color: Rgb, alpha = 0) {
+  addColor(target, index, color[0], color[1], color[2], alpha)
+}
+
 function shouldPaintCell(existing: number, paint: PaintMode) {
   return paint === "overlay" || existing === EMPTY || existing === SPACE
 }
 
-function paintColumn(buffer: any, x: number, column: Column, paint: PaintMode) {
+function paintColumn(buffer: any, x: number, column: Column, profile: RenderProfile) {
   const chars = buffer.buffers.char as Uint32Array
   const fg = buffer.buffers.fg as Float32Array
   const width = buffer.width as number
   const height = buffer.height as number
   const head = Math.floor(column.head)
+  const { paint, palette } = profile
 
   for (let offset = 0; offset < column.length; offset++) {
     const y = head - offset
@@ -458,23 +748,16 @@ function paintColumn(buffer: any, x: number, column: Column, paint: PaintMode) {
     chars[cellIndex] = pickGlyph()
 
     if (offset === 0) {
-      paintColor(fg, colorIndex, 0.92, 1, 0.88, 1)
+      paintRgba(fg, colorIndex, toRgba(palette.head))
       continue
     }
 
     if (offset < 3) {
-      paintColor(fg, colorIndex, 0.48, 0.96, 0.58, 1)
+      paintRgba(fg, colorIndex, toRgba(palette.bright))
       continue
     }
 
-    paintColor(
-      fg,
-      colorIndex,
-      0.04,
-      clamp(0.18 + fade * 0.48, 0, 1),
-      clamp(0.05 + fade * 0.18, 0, 1),
-      1,
-    )
+    paintRgba(fg, colorIndex, toRgba(mixRgb(palette.dim, palette.mid, fade)))
   }
 }
 
@@ -492,11 +775,11 @@ function renderRain(buffer: any, state: State, profile: RenderProfile, deltaTime
     }
 
     if (!column.active) continue
-    paintColumn(buffer, x, column, profile.paint)
+    paintColumn(buffer, x, column, profile)
   }
 }
 
-function applyScanlines(buffer: any, elapsed: number, strength: number) {
+function applyScanlines(buffer: any, elapsed: number, strength: number, palette: AccentPalette) {
   if (strength <= 0) return
 
   const fg = buffer.buffers.fg as Float32Array
@@ -504,6 +787,7 @@ function applyScanlines(buffer: any, elapsed: number, strength: number) {
   const width = buffer.width as number
   const height = buffer.height as number
   const sweep = ((elapsed * 12) % (height + 8)) - 4
+  const scan = palette.scan
 
   for (let y = 0; y < height; y++) {
     const lineShade = y % 2 === 0 ? strength * 0.08 : strength * 0.2
@@ -511,28 +795,29 @@ function applyScanlines(buffer: any, elapsed: number, strength: number) {
 
     for (let x = 0; x < width; x++) {
       const colorIndex = (y * width + x) * 4
-      fg[colorIndex] = clamp(fg[colorIndex] * (1 - lineShade) + sweepWeight * 0.008, 0, 1)
-      fg[colorIndex + 1] = clamp(fg[colorIndex + 1] * (1 - lineShade * 0.45) + sweepWeight * 0.08, 0, 1)
-      fg[colorIndex + 2] = clamp(fg[colorIndex + 2] * (1 - lineShade) + sweepWeight * 0.016, 0, 1)
+      fg[colorIndex] = clamp(fg[colorIndex] * (1 - lineShade) + sweepWeight * scan[0] * 0.08, 0, 1)
+      fg[colorIndex + 1] = clamp(fg[colorIndex + 1] * (1 - lineShade * 0.45) + sweepWeight * scan[1] * 0.08, 0, 1)
+      fg[colorIndex + 2] = clamp(fg[colorIndex + 2] * (1 - lineShade) + sweepWeight * scan[2] * 0.08, 0, 1)
       bg[colorIndex] = clamp(bg[colorIndex] * (1 - lineShade * 0.15), 0, 1)
-      bg[colorIndex + 1] = clamp(bg[colorIndex + 1] * (1 - lineShade * 0.08) + sweepWeight * 0.018, 0, 1)
-      bg[colorIndex + 2] = clamp(bg[colorIndex + 2] * (1 - lineShade * 0.15) + sweepWeight * 0.004, 0, 1)
+      bg[colorIndex + 1] = clamp(bg[colorIndex + 1] * (1 - lineShade * 0.08) + sweepWeight * scan[1] * 0.018, 0, 1)
+      bg[colorIndex + 2] = clamp(bg[colorIndex + 2] * (1 - lineShade * 0.15) + sweepWeight * scan[2] * 0.004, 0, 1)
     }
   }
 }
 
-function addGlow(bg: Float32Array, width: number, height: number, x: number, y: number, energy: number) {
+function addGlow(bg: Float32Array, width: number, height: number, x: number, y: number, energy: number, glow: Rgb) {
   if (x < 0 || x >= width || y < 0 || y >= height) return
-  addColor(bg, (y * width + x) * 4, energy * 0.03, energy * 0.13, energy * 0.04, energy * 0.28)
+  addColor(bg, (y * width + x) * 4, glow[0] * energy * 0.15, glow[1] * energy * 0.15, glow[2] * energy * 0.15, energy * 0.28)
 }
 
-function applyGlow(buffer: any, strength: number) {
+function applyGlow(buffer: any, strength: number, palette: AccentPalette) {
   if (strength <= 0) return
 
   const fg = buffer.buffers.fg as Float32Array
   const bg = buffer.buffers.bg as Float32Array
   const width = buffer.width as number
   const height = buffer.height as number
+  const accent = normalizeRgb(palette.glow)
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -543,46 +828,50 @@ function applyGlow(buffer: any, strength: number) {
       const red = fg[colorIndex]
       const green = fg[colorIndex + 1]
       const blue = fg[colorIndex + 2]
-      const energy = clamp((green - Math.max(red, blue)) * strength, 0, 0.18)
+      const brightness = Math.max(red, green, blue)
+      const energy = clamp(brightness * colorAlignment([red, green, blue], accent) * strength * 0.7, 0, 0.18)
       if (energy < 0.015) continue
 
-      fg[colorIndex + 1] = clamp(green + energy * 0.18, 0, 1)
-      fg[colorIndex + 2] = clamp(blue + energy * 0.04, 0, 1)
-      addGlow(bg, width, height, x, y, energy)
-      addGlow(bg, width, height, x - 1, y, energy * 0.45)
-      addGlow(bg, width, height, x + 1, y, energy * 0.45)
-      addGlow(bg, width, height, x, y - 1, energy * 0.32)
-      addGlow(bg, width, height, x, y + 1, energy * 0.32)
+      addRgb(fg, colorIndex, scaleRgb(palette.glow, energy * 0.22), 0)
+      addGlow(bg, width, height, x, y, energy, palette.glow)
+      addGlow(bg, width, height, x - 1, y, energy * 0.45, palette.glow)
+      addGlow(bg, width, height, x + 1, y, energy * 0.45, palette.glow)
+      addGlow(bg, width, height, x, y - 1, energy * 0.32, palette.glow)
+      addGlow(bg, width, height, x, y + 1, energy * 0.32, palette.glow)
     }
   }
 }
 
 function applyPostFx(buffer: any, state: State, profile: RenderProfile) {
-  applyGlow(buffer, profile.glow)
-  applyScanlines(buffer, state.elapsed, profile.scanline)
+  applyGlow(buffer, profile.glow, profile.palette)
+  applyScanlines(buffer, state.elapsed, profile.scanline, profile.palette)
 }
 
-function paintIntroBackdrop(buffer: any) {
+function paintIntroBackdrop(buffer: any, palette: AccentPalette) {
   const chars = buffer.buffers.char as Uint32Array
   const fg = buffer.buffers.fg as Float32Array
   const bg = buffer.buffers.bg as Float32Array
   const width = buffer.width as number
   const height = buffer.height as number
+  const fgColor = mixRgb(palette.deep, palette.dim, 0.55)
+  const topBg = scaleRgb(palette.deep, 0.4)
+  const bottomBg = scaleRgb(palette.mid, 0.14)
 
   for (let y = 0; y < height; y++) {
-    const fade = 0.01 + (y / Math.max(1, height - 1)) * 0.025
+    const fade = y / Math.max(1, height - 1)
+    const bgColor = mixRgb(topBg, bottomBg, fade)
 
     for (let x = 0; x < width; x++) {
       const cellIndex = y * width + x
       const colorIndex = cellIndex * 4
       chars[cellIndex] = SPACE
-      paintColor(fg, colorIndex, 0.03, 0.14, 0.06, 1)
-      paintColor(bg, colorIndex, 0.005, fade, 0.01, 1)
+      paintRgba(fg, colorIndex, toRgba(fgColor))
+      paintRgba(bg, colorIndex, toRgba(bgColor))
     }
   }
 }
 
-function paintText(buffer: any, x: number, y: number, text: string, color: [number, number, number, number]) {
+function paintText(buffer: any, x: number, y: number, text: string, color: Rgba) {
   if (y < 0 || y >= (buffer.height as number)) return
 
   const chars = buffer.buffers.char as Uint32Array
@@ -595,7 +884,7 @@ function paintText(buffer: any, x: number, y: number, text: string, color: [numb
 
     const cellIndex = y * width + px
     chars[cellIndex] = text.charCodeAt(index)
-    paintColor(fg, cellIndex * 4, color[0], color[1], color[2], color[3])
+    paintRgba(fg, cellIndex * 4, color)
   }
 }
 
@@ -681,13 +970,14 @@ function syncTextDrops(buffer: any, state: State, settings: Settings, api: any) 
   snapshotChars(state, chars, width, height, route)
 }
 
-function renderTextDrops(buffer: any, state: State, deltaTime: number) {
+function renderTextDrops(buffer: any, state: State, profile: RenderProfile, deltaTime: number) {
   if (!state.textDrops.size) return
 
   const chars = buffer.buffers.char as Uint32Array
   const fg = buffer.buffers.fg as Float32Array
   const width = buffer.width as number
   const height = buffer.height as number
+  const palette = profile.palette
 
   for (const [cellIndex, drop] of state.textDrops) {
     if (drop.x >= width || drop.y >= height) {
@@ -704,16 +994,10 @@ function renderTextDrops(buffer: any, state: State, deltaTime: number) {
 
     if (progress < 0.88) {
       chars[targetIndex] = progress > 0.7 ? pickGlyph() : SPACE
-      paintColor(
-        fg,
-        targetIndex * 4,
-        progress > 0.7 ? 0.56 : 0.06,
-        progress > 0.7 ? 0.98 : 0.22 + progress * 0.16,
-        progress > 0.7 ? 0.6 : 0.08,
-        1,
-      )
+      const settleColor = progress > 0.7 ? palette.bright : mixRgb(palette.dim, palette.mid, 0.4 + progress * 0.35)
+      paintRgba(fg, targetIndex * 4, toRgba(settleColor))
     } else {
-      addColor(fg, targetIndex * 4, 0.04, 0.1, 0.04, 0)
+      addRgb(fg, targetIndex * 4, scaleRgb(palette.dim, 0.6), 0)
     }
 
     for (let offset = 0; offset < trail; offset++) {
@@ -731,19 +1015,12 @@ function renderTextDrops(buffer: any, state: State, deltaTime: number) {
       chars[index] = pickGlyph()
 
       if (offset === 0) {
-        paintColor(fg, colorIndex, 0.92, 1, 0.88, 1)
+        paintRgba(fg, colorIndex, toRgba(palette.head))
         continue
       }
 
       const fade = 1 - offset / trail
-      paintColor(
-        fg,
-        colorIndex,
-        0.06,
-        clamp(0.22 + fade * 0.42, 0, 1),
-        clamp(0.08 + fade * 0.22, 0, 1),
-        1,
-      )
+      paintRgba(fg, colorIndex, toRgba(mixRgb(palette.dim, palette.mid, fade)))
     }
 
     if (progress >= 1) {
@@ -781,13 +1058,7 @@ function scrambleLine(text: string, reveal: number) {
   return result
 }
 
-function paintCenteredLine(
-  buffer: any,
-  y: number,
-  text: string,
-  color: [number, number, number, number],
-  reveal = 1,
-) {
+function paintCenteredLine(buffer: any, y: number, text: string, color: Rgba, reveal = 1) {
   const line = scrambleLine(text, reveal)
   const x = Math.floor(((buffer.width as number) - line.length) / 2)
   paintText(buffer, x, y, line, color)
@@ -821,21 +1092,26 @@ function paintIntroText(buffer: any, state: State, settings: Settings) {
   const footerY = Math.min(height - 4, frameY + INTRO_FRAME.length + 2)
   const statusY = Math.min(height - 2, footerY + 2)
   const percent = String(Math.round(progress * 100)).padStart(3, "0")
+  const palette = accentPalette(settings)
+  const headerColor = toRgba(mixRgb(palette.mid, palette.bright, 0.55))
+  const subtitleColor = toRgba(mixRgb(palette.dim, palette.mid, 0.85))
+  const frameBaseColor = toRgba(mixRgb(palette.dim, palette.mid, 0.75))
+  const progressColor = toRgba(palette.bright)
+  const statusColor = toRgba(mixRgb(palette.dim, palette.mid, 0.7))
 
-  paintCenteredLine(buffer, headerY, "SECURE CHANNEL // OPENCODE", [0.42, 0.96, 0.54, 1], clamp(progress * 1.5, 0, 1))
+  paintCenteredLine(buffer, headerY, "SECURE CHANNEL // OPENCODE", headerColor, clamp(progress * 1.5, 0, 1))
   paintCenteredLine(
     buffer,
     headerY + 1,
     "MATRIX RAIN PROTOCOL INITIALIZING",
-    [0.18, 0.72, 0.34, 1],
+    subtitleColor,
     clamp(progress * 1.6 - 0.08, 0, 1),
   )
 
   for (let index = 0; index < INTRO_FRAME.length; index++) {
     const line = INTRO_FRAME[index]
     const reveal = clamp(progress * 1.35 - index * 0.05, 0, 1)
-    const color: [number, number, number, number] =
-      index === 1 ? [0.92, 1, 0.88, 1] : index === 2 ? [0.48, 0.96, 0.58, 1] : [0.18, 0.7, 0.32, 1]
+    const color = index === 1 ? toRgba(palette.head) : index === 2 ? toRgba(palette.bright) : frameBaseColor
     paintCenteredLine(buffer, frameY + index, line, color, reveal)
   }
 
@@ -843,15 +1119,15 @@ function paintIntroText(buffer: any, state: State, settings: Settings) {
     buffer,
     footerY,
     `${progressBar(progress, 24)} ${percent}%`,
-    [0.48, 0.96, 0.58, 1],
+    progressColor,
     clamp(progress * 1.8 - 0.2, 0, 1),
   )
-  paintCenteredLine(buffer, statusY, introStatus(settings), [0.18, 0.68, 0.32, 1], clamp(progress * 1.8 - 0.32, 0, 1))
+  paintCenteredLine(buffer, statusY, introStatus(settings), statusColor, clamp(progress * 1.8 - 0.32, 0, 1))
 
   if (width > 68) {
-    paintText(buffer, 2, 2, scrambleLine("renderer synchronized", clamp(progress * 1.7, 0, 1)), [0.18, 0.72, 0.34, 1])
+    paintText(buffer, 2, 2, scrambleLine("renderer synchronized", clamp(progress * 1.7, 0, 1)), subtitleColor)
     const right = scrambleLine(`scope ${settings.scope} // paint ${settings.paint}`, clamp(progress * 1.7 - 0.05, 0, 1))
-    paintText(buffer, width - right.length - 2, 2, right, [0.18, 0.72, 0.34, 1])
+    paintText(buffer, width - right.length - 2, 2, right, subtitleColor)
   }
 }
 
@@ -876,7 +1152,7 @@ function introActive(state: State, settings: Settings) {
 
 function renderIntro(buffer: any, state: State, settings: Settings, deltaTime: number) {
   const profile = resolveIntroProfile(settings)
-  paintIntroBackdrop(buffer)
+  paintIntroBackdrop(buffer, profile.palette)
   renderRain(buffer, state, profile, deltaTime)
   paintIntroText(buffer, state, settings)
   applyPostFx(buffer, state, profile)
@@ -887,20 +1163,16 @@ function routeEnabled(api: any, settings: Settings) {
 }
 
 async function ensureTheme(api: any, settings: Settings) {
-  for (const themePath of [THEME_PATH, OPAQUE_THEME_PATH]) {
+  for (const themePath of PLUGIN_THEME_PATHS) {
     try {
       await api.theme.install(themePath)
     } catch {}
   }
 
-  const themeName = preferredThemeName(settings)
+  if (!settings.enabled) return
 
   if (api.kv.get(THEME_READY_KEY, false) !== true) {
-    if (!api.theme.has(themeName)) return
-    if (api.theme.selected !== themeName) {
-      api.theme.set(themeName)
-    }
-    api.kv.set(THEME_READY_KEY, true)
+    activatePluginTheme(api, settings)
     return
   }
 
@@ -950,10 +1222,23 @@ const plugin = {
     }
 
     const updateSettings = (patch: Partial<Settings>) => {
+      const previousSettings = settings
       settings = { ...settings, ...patch }
       persistSettings(api, settings)
 
-      if (patch.backgroundTransparency !== undefined && matrixThemeSelected(api)) {
+      if (patch.enabled !== undefined && patch.enabled !== previousSettings.enabled) {
+        if (settings.enabled) {
+          activatePluginTheme(api, settings)
+        } else {
+          deactivatePluginTheme(api)
+        }
+      }
+
+      if (
+        settings.enabled &&
+        (patch.backgroundTransparency !== undefined || patch.accentColor !== undefined) &&
+        matrixThemeSelected(api)
+      ) {
         applyPreferredTheme(api, settings)
       }
 
@@ -966,11 +1251,20 @@ const plugin = {
         resetTextFx(state)
       }
 
-      if (patch.density || patch.speed || patch.profile) {
+      if (patch.density || patch.speed || patch.profile || patch.accentColor) {
         resetScene(state)
       }
 
       requestRefresh()
+    }
+
+    const togglePluginEnabled = () => {
+      const nextEnabled = !settings.enabled
+      updateSettings({ enabled: nextEnabled })
+      api.ui.toast({
+        variant: "info",
+        message: nextEnabled ? "Matrix plugin enabled" : "Matrix plugin disabled",
+      })
     }
 
     const replayIntro = () => {
@@ -997,12 +1291,23 @@ const plugin = {
     const showSettings = () => {
       const options = [
         {
-          title: `Effect: ${settings.enabled ? "On" : "Off"}`,
+          title: `Plugin enabled: ${settings.enabled ? "On" : "Off"}`,
           value: "effect",
-          description: "Toggle the Matrix rain overlay.",
+          description: "Turn the Matrix theme and effects on or off.",
           onSelect: () => {
-            updateSettings({ enabled: !settings.enabled })
+            togglePluginEnabled()
             showSettings()
+          },
+        },
+        {
+          title: `Accent color: ${ACCENT_LABEL[settings.accentColor]}`,
+          value: "accentColor",
+          description: "Choose the Matrix accent palette for the theme and rain.",
+          onSelect: () => {
+            openChoice("Accent color", ACCENT_CHOICES, settings.accentColor, (value) => {
+              updateSettings({ accentColor: value })
+              showSettings()
+            })
           },
         },
         {
@@ -1133,19 +1438,17 @@ const plugin = {
               },
             }
           : undefined,
-        api.theme.selected !== preferredThemeName(settings)
+        settings.enabled && api.theme.selected !== preferredThemeName(settings)
           ? {
               title: "Use matrix-console theme",
               value: "theme",
               description: "Switch the UI to the Matrix theme.",
               onSelect: () => {
-                const themeName = preferredThemeName(settings)
-                if (!api.theme.has(themeName)) return
-                api.theme.set(themeName)
+                if (!activatePluginTheme(api, settings)) return
                 api.renderer.requestRender()
                 api.ui.toast({
                   variant: "success",
-                  message: "Switched to matrix-console theme",
+                  message: `Switched to ${preferredThemeName(settings)} theme`,
                 })
                 showSettings()
               },
@@ -1207,7 +1510,7 @@ const plugin = {
 
       const profile = resolveRenderProfile(api, settings)
       renderRain(buffer, state, profile, deltaTime)
-      renderTextDrops(buffer, state, deltaTime)
+      renderTextDrops(buffer, state, profile, deltaTime)
       applyPostFx(buffer, state, profile)
     }
 
@@ -1221,18 +1524,11 @@ const plugin = {
         onSelect: () => showSettings(),
       },
       {
-        title: settings.enabled ? "Disable Matrix rain" : "Enable Matrix rain",
+        title: settings.enabled ? "Disable Matrix plugin" : "Enable Matrix plugin",
         value: "plugin.matrix-rain.toggle",
         category: "Plugin",
         onSelect: () => {
-          const nextEnabled = !settings.enabled
-          updateSettings({ enabled: nextEnabled })
-          api.ui.toast({
-            variant: "info",
-            message: nextEnabled
-              ? `Matrix rain enabled ${settings.scope === "all" ? "everywhere" : "on the home screen"}`
-              : "Matrix rain disabled",
-          })
+          togglePluginEnabled()
         },
       },
       settings.enabled && settings.intro
@@ -1253,15 +1549,13 @@ const plugin = {
         title: "Use matrix-console theme",
         value: "plugin.matrix-rain.theme",
         category: "Plugin",
-        hidden: api.theme.selected === preferredThemeName(settings),
+        hidden: !settings.enabled || api.theme.selected === preferredThemeName(settings),
         onSelect: () => {
-          const themeName = preferredThemeName(settings)
-          if (!api.theme.has(themeName)) return
-          api.theme.set(themeName)
+          if (!activatePluginTheme(api, settings)) return
           api.renderer.requestRender()
           api.ui.toast({
             variant: "success",
-            message: "Switched to matrix-console theme",
+            message: `Switched to ${preferredThemeName(settings)} theme`,
           })
         },
       },

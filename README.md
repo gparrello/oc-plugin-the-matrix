@@ -2,7 +2,7 @@
 
 Matrix-inspired TUI plugin for OpenCode.
 
-It adds a green-phosphor theme with toggleable background transparency, animated rain, a cinematic startup intro, and optional session text that briefly drops into place.
+It adds a Matrix-inspired theme with selectable accent colors, toggleable background transparency, animated rain, a cinematic startup intro, and optional session text that briefly drops into place.
 
 ## Screencast
 
@@ -12,6 +12,7 @@ Click the preview to open the full video.
 
 ## Features
 
+- selectable accent colors: `Green`, `Cyan`, `Blue`, `Purple`, `Amber`, `Yellow`, `Pink`, and `Red`
 - toggleable transparent or opaque `matrix-console` theme background
 - fullscreen boot-style intro
 - Matrix rain on the home screen or across the full UI
@@ -45,12 +46,14 @@ Open the command palette and run `Matrix rain settings`.
 Available commands:
 
 - `Matrix rain settings`
+- `Enable Matrix plugin` / `Disable Matrix plugin`
 - `Replay Matrix intro`
 - `Use matrix-console theme`
 
 ## Settings
 
-- `Effect`: master on/off switch
+- `Plugin enabled`: master on/off switch for the Matrix theme and effects
+- `Accent color`: switch between `Green`, `Cyan`, `Blue`, `Purple`, `Amber`, `Yellow`, `Pink`, and `Red`
 - `Background transparency`: toggle the bundled Matrix theme between transparent and opaque backgrounds
 - `Scope`: `Home only` or `Everywhere`
 - `Route profile`: `Route-aware` or `Uniform`
@@ -65,11 +68,14 @@ Available commands:
 
 `Session text settle` is meant for `Scope: Everywhere` and applies only on session routes.
 
+When the plugin is turned off, it stops the Matrix effects and restores the previous theme when one is available, falling back to the default `opencode` theme.
+
 ## Repository Layout
 
 - `index.ts`: TUI plugin entry
 - `matrix-console.json`: transparent bundled theme
 - `matrix-console-opaque.json`: opaque bundled theme variant
+- `matrix-console-*.json`: bundled accent theme variants
 
 ## Notes
 
